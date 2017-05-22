@@ -47,16 +47,10 @@ Then be sure to add the installation directories for the library and the header 
 - Include `<neo/neo.h>` for the C interface or `<neo/neo.hpp>` for the C++ interface.
 - Link `libneo.so` with `-lneo`.
 
-For example:
-
-    gcc -Wall -Wextra -pedantic -std=c99 examples/example.c -lneo
-    g++ -Wall -Wextra -pedantic -std=c++11 examples/example.cc -lneo
-
-In addition, we provide CMake integration. In your `CMakeLists.txt`:
+In your `CMakeLists.txt`:
 
     FindPackage(Neo REQUIRED)
     target_link_libraries(.. ${LIBNEO_LIBRARY})
     target_include_directories(.. ${LIBNEO_INCLUDE_DIR})
 
-See [example.c](examples/example.c) and [example.cc](examples/example.cc) for a C and C++ example, respectively.
 
