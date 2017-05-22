@@ -1,0 +1,8 @@
+build
+a.out
+*.so
+*.o
+*.swp
+cmake-build-debug/
+.idea/
+.clang-format
