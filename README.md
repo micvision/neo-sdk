@@ -126,3 +126,7 @@ void neo_device_reset(neo_device_s, neo_error_s);                       // C
 
 Reset the neo device.
 
+### Neopy
+
+The `neopy` directory is the python module for neo device. Please refer the [README.md](numpy/README.md).
+
