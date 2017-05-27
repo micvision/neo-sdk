@@ -88,6 +88,31 @@ class neo:
     def __init__(self, port, bitrate = None):
         self.scoped = False
         self.args = [port, bitrate]
+        self.scoped = True
+        self.device = None
+
+        assert libneo.neo_is_abi_compatible(), 'Your installed libneo is not ABI compatible with these bindings'
+
+        error = ctypes.c_void_p();
+
+        simple = not self.args[1]
+        config = all(self.args)
+
+        assert simple or config, 'No arguments for bitrate, required'
+
+        if simple:
+            port = ctypes.string_at(self.args[0].encode('ascii'))
+            device = libneo.neo_device_construct_simple(port, ctypes.byref(error))
+
+        if config:
+            port = ctypes.string_at(self.args[0].encode('ascii'))
+            bitrate = ctypes.c_int32(self.args[1])
+            device = libneo.neo_device_construct(port, bitrate, ctypes.byref(error))
+
+        if error:
+            raise _error_to_exception(error)
+
+        self.device = device
 
     ### Build for `with` function
     def __enter__(self):
