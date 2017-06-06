@@ -1,0 +1,4 @@
+build/
+dist/
+neopy.egg-info/
+*.pyc
