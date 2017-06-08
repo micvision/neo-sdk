@@ -178,7 +178,7 @@ neo_scan_s neo_device_get_scan(neo_device_s device, neo_error_s* error) {
 
   neo::protocol::response_scan_packet_s responses[NEO_MAX_SAMPLES];
 
-  int32_t received = 0;
+  int32_t received = 1;
 
   while (received < NEO_MAX_SAMPLES) {
     neo::protocol::read_response_scan(device->serial, &responses[received], &protocolerror);
@@ -197,13 +197,14 @@ neo_scan_s neo_device_get_scan(neo_device_s device, neo_error_s* error) {
     }
 
     if (is_sync) {
+      responses[0] = responses[received];
       break;
     }
   }
 
   auto out = new neo_scan;
 
-  out->count = received;
+  out->count = received - 1;
 
   for (int32_t it = 0; it < received; ++it) {
     // Convert angle from compact serial format to float (in degrees).
