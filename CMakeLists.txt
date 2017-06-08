@@ -74,17 +74,11 @@ install(TARGETS neo DESTINATION lib)
 install(DIRECTORY include/neo DESTINATION include)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/include/neo/config.h DESTINATION include/neo)
 
-
-# neo_ctl target.
-
-
+# neo_ctl target
 add_executable(neo_ctl src/neo_ctl.cpp)
 target_include_directories(neo_ctl PRIVATE include include/neo ${CMAKE_CURRENT_BINARY_DIR}/include)
 target_link_libraries(neo_ctl neo ${CMAKE_THREAD_LIBS_INIT})
 
-include(GNUInstallDirs)
-install(TARGETS neo_ctl DESTINATION bin)
-install(FILES man/neo_ctl.1 DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
 
 # Make FindPackage(Neo) work for CMake users.
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/NeoConfig.cmake DESTINATION lib/cmake/neo)
