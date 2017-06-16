@@ -24,8 +24,7 @@ namespace neo {
 // Error reporting
 
 struct device_error final : std::runtime_error {
-  using base = std::runtime_error;
-  using base::base;
+  device_error(const char* str) : std::runtime_error(str) {}
 };
 
 // Interface
@@ -68,7 +67,7 @@ namespace detail {
 struct error_to_exception {
   operator ::neo_error_s*() { return &error; }
 
-  ~error_to_exception() noexcept(false) {
+  ~error_to_exception() {
     if (error) {
       device_error e{::neo_error_message(error)};
       ::neo_error_destruct(error);
