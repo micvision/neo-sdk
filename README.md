@@ -13,6 +13,13 @@ sudo cmake --build . --target install
 sudo ldconfig
 ```
 
+You can also using the script to install the SDK under ubuntu.
+
+```bash
+cd script
+sudo ./installNeoSDK.sh
+```
+
 
 For Windows users open a command prompt with administrative privileges:
 
