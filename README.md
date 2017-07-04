@@ -1,6 +1,6 @@
 Neo LiDAR SDK
 ---
-[toc]
+[TOC]
 
 ### INSTALLATION
 
@@ -16,7 +16,8 @@ sudo ldconfig
 You can also using the script to install the SDK under ubuntu.
 
 ```bash
-cd script
+wget https://raw.githubusercontent.com/micvision/neo-sdk/master/script/installNeoSDK.sh
+chmod +x installNeoSDK.sh
 sudo ./installNeoSDK.sh
 ```
 
