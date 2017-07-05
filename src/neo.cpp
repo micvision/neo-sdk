@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "neo.h"
 #include "protocol.h"
 #include "serial.h"
@@ -177,10 +178,15 @@ neo_scan_s neo_device_get_scan(neo_device_s device, neo_error_s* error) {
   neo::protocol::error_s protocolerror = nullptr;
 
   neo::protocol::response_scan_packet_s responses[NEO_MAX_SAMPLES];
+  static neo::protocol::response_scan_packet_s responses_syns;
 
-  int32_t received = 1;
+  int32_t received = 0;
 
   while (received < NEO_MAX_SAMPLES) {
+    if (0 == received) {
+      responses[received++] = responses_syns;
+      continue;
+    }
     neo::protocol::read_response_scan(device->serial, &responses[received], &protocolerror);
 
     if (protocolerror) {
@@ -197,7 +203,7 @@ neo_scan_s neo_device_get_scan(neo_device_s device, neo_error_s* error) {
     }
 
     if (is_sync) {
-      responses[0] = responses[received];
+      responses_syns = responses[received-1];
       break;
     }
   }
@@ -206,7 +212,7 @@ neo_scan_s neo_device_get_scan(neo_device_s device, neo_error_s* error) {
 
   out->count = received - 1;
 
-  for (int32_t it = 0; it < received; ++it) {
+  for (int32_t it = 0; it < received - 1; ++it) {
     // Convert angle from compact serial format to float (in degrees).
     // In addition convert from degrees to milli-degrees.
     out->angle[it] = static_cast<int32_t>(neo::protocol::u16_to_f32(responses[it].angle) * 1000.f);
