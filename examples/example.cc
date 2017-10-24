@@ -7,13 +7,13 @@
 #include <neo/neo.hpp>
 
 int main(int argc, char* argv[]) try {
-  if (argc != 2) {
-    std::cerr << "Usage: ./example-c++ device\n";
+  if (argc != 3) {
+    std::cerr << "Usage: ./example-c++ device baudrate\n";
     return EXIT_FAILURE;
   }
 
   std::cout << "Constructing sweep device..." << std::endl;
-  neo::neo device{argv[1]};
+  neo::neo device{argv[1], atoi(argv[2])};
 
   std::cout << "Motor Speed Setting: " << device.get_motor_speed()
     << " Hz" << std::endl;
