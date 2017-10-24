@@ -79,6 +79,10 @@ add_executable(neo_ctl src/neo_ctl.cpp)
 target_include_directories(neo_ctl PRIVATE include include/neo ${CMAKE_CURRENT_BINARY_DIR}/include)
 target_link_libraries(neo_ctl neo ${CMAKE_THREAD_LIBS_INIT})
 
+add_executable(example examples/example.cc)
+target_include_directories(example PRIVATE include include/neo ${CMAKE_CURRENT_BINARY_DIR}/include)
+target_link_libraries(example neo ${CMAKE_THREAD_LIBS_INIT})
+
 
 # Make FindPackage(Neo) work for CMake users.
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/NeoConfig.cmake DESTINATION lib/cmake/neo)
