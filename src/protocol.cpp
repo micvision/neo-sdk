@@ -56,13 +56,12 @@ static uint8_t checksum_response_scan_packet(response_scan_packet_s* v) {
   NEO_ASSERT(v);
 
   uint64_t checksum = 0;
-  checksum += v->sync_error;
-  checksum += v->angle & 0xff00;
+  checksum += (v->distance_low << 3) + (v->VHL << 2) + (v->s2 << 1) + v->s1;
+  checksum += v->distance_high;
   checksum += v->angle & 0x00ff;
-  checksum += v->distance & 0xff00;
-  checksum += v->distance & 0x00ff;
-  checksum += v->signal_strength;
-  return checksum % 255;
+  checksum += v->angle >> 8;
+  checksum += v->VRECT << 4;
+  return checksum % 15;
 }
 
 void write_command(serial::device_s serial, const uint8_t cmd[2], error_s* error) {

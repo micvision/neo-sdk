@@ -45,7 +45,7 @@ int main(int argc, char** argv) try {
   const auto& dev = args[1];
   const auto& cmd = args[3];
 
-  neo::neo device{dev.c_str(), 115200}; // TODO: simple dev ctor
+  neo::neo device{dev.c_str(), 230400}; // TODO: simple dev ctor
 
   if (get && cmd == kMotorSpeedCmd) {
     std::printf("%" PRId32 "\n", device.get_motor_speed());

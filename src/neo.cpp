@@ -23,7 +23,7 @@ typedef struct neo_device {
 typedef struct neo_scan {
   int32_t angle[NEO_MAX_SAMPLES];           // in millidegrees
   int32_t distance[NEO_MAX_SAMPLES];        // in cm
-  int32_t signal_strength[NEO_MAX_SAMPLES]; // range 0:255
+  // int32_t signal_strength[NEO_MAX_SAMPLES]; // range 0:255
   int32_t count;
 } neo_scan;
 
@@ -195,12 +195,12 @@ neo_scan_s neo_device_get_scan(neo_device_s device, neo_error_s* error) {
       return nullptr;
     }
 
-    const bool is_sync = responses[received].sync_error & neo::protocol::response_scan_packet_sync::sync;
-    const bool has_error = (responses[received].sync_error >> 1) != 0; // shift out sync bit, others are errors
+    //const bool is_sync = responses[received].sync_error & neo::protocol::response_scan_packet_sync::sync;
+    //const bool has_error = (responses[received].sync_error >> 1) != 0; // shift out sync bit, others are errors
+    const bool is_sync = responses[received].s1
+        & neo::protocol::response_scan_packet_sync::sync;
 
-    if (!has_error) {
-      received++;
-    }
+    received++;
 
     if (is_sync) {
       responses_syns = responses[received-1];
@@ -216,8 +216,9 @@ neo_scan_s neo_device_get_scan(neo_device_s device, neo_error_s* error) {
     // Convert angle from compact serial format to float (in degrees).
     // In addition convert from degrees to milli-degrees.
     out->angle[it] = static_cast<int32_t>(neo::protocol::u16_to_f32(responses[it].angle) * 1000.f);
-    out->distance[it] = responses[it].distance;
-    out->signal_strength[it] = responses[it].signal_strength;
+    out->distance[it] = ((int)responses[it].distance_low)
+        + ((int)responses[it].distance_high << 5);
+    //out->signal_strength[it] = responses[it].signal_strength;
   }
 
   return out;
@@ -244,12 +245,14 @@ int32_t neo_scan_get_distance(neo_scan_s scan, int32_t sample) {
   return scan->distance[sample];
 }
 
+/*
 int32_t neo_scan_get_signal_strength(neo_scan_s scan, int32_t sample) {
   NEO_ASSERT(scan);
   NEO_ASSERT(sample >= 0 && sample < scan->count && "sample index out of bounds");
 
   return scan->signal_strength[sample];
 }
+*/
 
 void neo_scan_destruct(neo_scan_s scan) {
   NEO_ASSERT(scan);

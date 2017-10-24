@@ -80,14 +80,20 @@ typedef struct {
 static_assert(sizeof(response_param_s) == 9, "response param size mismatch");
 
 typedef struct {
-  uint8_t sync_error; // see response_scan_packet_sync::bits below
-  uint16_t angle;     // see u16_to_f32
-  uint16_t distance;
-  uint8_t signal_strength;
-  uint8_t checksum;
+  // +  -  -  -  -  -  -  -  -  -  - +
+  // | Distance[4:0] | VHL | S2 | S1 |
+  // |     Distance[12:5]            |
+  uint8_t  s1:1;
+  uint8_t  s2:1;
+  uint8_t  VHL:1;
+  uint8_t  distance_low:5;
+  uint8_t  distance_high:8;
+  uint16_t angle;
+  uint8_t  checksum:4;
+  uint8_t  VRECT:4;
 } response_scan_packet_s;
 
-static_assert(sizeof(response_scan_packet_s) == 7, "response scan packet size mismatch");
+static_assert(sizeof(response_scan_packet_s) == 5, "response scan packet size mismatch");
 
 namespace response_scan_packet_sync {
 enum bits : uint8_t {
@@ -172,7 +178,8 @@ void read_response_info_sample_rate(neo::serial::device_s serial, const uint8_t 
                                     error_s* error);
 
 // Some protocol conversion utilities
-inline float u16_to_f32(uint16_t v) { return ((float)(v >> 4u)) + (v & 15u) / 16.0f; }
+// inline float u16_to_f32(uint16_t v) { return ((float)(v >> 4u)) + (v & 15u) / 16.0f; }
+inline float u16_to_f32(uint16_t v) { return (float) v/128.0f; }
 
 inline void integral_to_ascii_bytes(const int32_t integral, uint8_t bytes[2]) {
   NEO_ASSERT(integral >= 0);

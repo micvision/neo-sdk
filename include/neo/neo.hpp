@@ -33,7 +33,7 @@ struct device_error final : std::runtime_error {
 struct sample {
   const std::int32_t angle;
   const std::int32_t distance;
-  const std::int32_t signal_strength;
+  //const std::int32_t signal_strength;
 };
 
 struct scan {
@@ -115,9 +115,9 @@ scan neo::get_scan() {
   for (std::int32_t n = 0; n < num_samples; ++n) {
     auto angle = ::neo_scan_get_angle(releasing_scan.get(), n);
     auto distance = ::neo_scan_get_distance(releasing_scan.get(), n);
-    auto signal = ::neo_scan_get_signal_strength(releasing_scan.get(), n);
+    //auto signal = ::neo_scan_get_signal_strength(releasing_scan.get(), n);
 
-    result.samples.push_back(sample{angle, distance, signal});
+    result.samples.push_back(sample{angle, distance});
   }
 
   return result;
