@@ -67,8 +67,36 @@ neo_device_s neo_device_construct(const char* port, int32_t bitrate, neo_error_s
     return nullptr;
   }
 
-  auto out = new neo_device{serial, /*is_scanning=*/true};
+  auto out = new neo_device{serial, /*is_scanning=*/false};
 
+  // Setting motor running
+  neo_error_s MS05_error = nullptr;
+  neo_device_set_motor_speed(out, 5, &MS05_error);
+  if (MS05_error) {
+    *error = MS05_error;
+    neo_device_destruct(out);
+    return nullptr;
+  }
+
+  // device calibration
+  neo_error_s CS_error = nullptr;
+  neo_device_calibrate(out, &CS_error);
+  if (CS_error) {
+    *error = CS_error;
+    neo_device_destruct(out);
+    return nullptr;
+  }
+
+  // Stop motor
+  neo_error_s MS00_error = nullptr;
+  neo_device_set_motor_speed(out, 0, &MS00_error);
+  if (MS00_error) {
+    *error = MS00_error;
+    neo_device_destruct(out);
+    return nullptr;
+  }
+
+  out->is_scanning = true;
   neo_error_s stoperror = nullptr;
   neo_device_stop_scanning(out, &stoperror);
 
@@ -426,3 +454,42 @@ void neo_device_reset(neo_device_s device, neo_error_s* error) {
     return;
   }
 }
+void neo_device_calibrate(neo_device_s device, neo_error_s* error) {
+  NEO_ASSERT(device);
+  NEO_ASSERT(error);
+  NEO_ASSERT(!device->is_scanning);
+
+  neo::protocol::error_s protocolerror = nullptr;
+  neo::protocol::write_command(device->serial,
+      neo::protocol::DEVICE_CALIBRATION, &protocolerror);
+
+  if (protocolerror) {
+    *error = neo_error_construct("unable to send device calibration command");
+    neo::protocol::error_destruct(protocolerror);
+    return;
+  }
+
+  int time = 0;
+  printf("wait device calibration...  \n");
+  while (time < 10) {
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+    ++time;
+    printf("%d  \n", time);
+  }
+  printf("\n");
+
+
+  neo::protocol::response_header_s response;
+  neo::protocol::read_response_header(device->serial,
+                                      neo::protocol::DEVICE_CALIBRATION,
+                                      &response, &protocolerror);
+
+  if (protocolerror) {
+    *error =
+      neo_error_construct("unable to receive device calibration response");
+    neo::protocol::error_destruct(protocolerror);
+    return;
+  }
+
+}
+

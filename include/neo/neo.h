@@ -71,6 +71,8 @@ NEO_API void neo_device_set_sample_rate(neo_device_s device, int32_t hz, neo_err
 
 NEO_API void neo_device_reset(neo_device_s device, neo_error_s* error);
 
+NEO_API void neo_device_calibrate(neo_device_s device, neo_error_s* error);
+
 #ifdef __cplusplus
 }
 #endif

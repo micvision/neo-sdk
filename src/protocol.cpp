@@ -15,6 +15,7 @@ const uint8_t SAMPLE_RATE_INFORMATION[2] = {'L', 'I'};
 const uint8_t VERSION_INFORMATION[2] = {'I', 'V'};
 const uint8_t DEVICE_INFORMATION[2] = {'I', 'D'};
 const uint8_t RESET_DEVICE[2] = {'R', 'R'};
+const uint8_t DEVICE_CALIBRATION[2] = {'C', 'S'};
 
 typedef struct error {
   const char* what; // always literal, do not deallocate

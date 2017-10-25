@@ -30,6 +30,7 @@ extern const uint8_t SAMPLE_RATE_INFORMATION[2];
 extern const uint8_t VERSION_INFORMATION[2];
 extern const uint8_t DEVICE_INFORMATION[2];
 extern const uint8_t RESET_DEVICE[2];
+extern const uint8_t DEVICE_CALIBRATION[2];
 
 // Packets for communication
 

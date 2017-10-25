@@ -58,6 +58,8 @@ public:
 
   void reset();
 
+  void calibrate();
+
 private:
   std::unique_ptr<::neo_device, decltype(&::neo_device_destruct)> device;
 };
@@ -124,6 +126,7 @@ scan neo::get_scan() {
 }
 
 void neo::reset() { ::neo_device_reset(device.get(), detail::error_to_exception{}); }
+void neo::calibrate() { ::neo_device_calibrate(device.get(), detail::error_to_exception{}); }
 
 } // namespace neo
 
