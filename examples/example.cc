@@ -1,5 +1,5 @@
 // Make use of the CMake build system or compile manually, e.g. with:
-// g++ -std=c++11 example.cc -lsweep
+// g++ -std=c++11 example.cc -lneo
 
 #include <cstdlib>
 #include <iostream>
@@ -12,7 +12,7 @@ int main(int argc, char* argv[]) try {
     return EXIT_FAILURE;
   }
 
-  std::cout << "Constructing sweep device..." << std::endl;
+  std::cout << "Constructing neo device..." << std::endl;
   neo::neo device{argv[1], atoi(argv[2])};
 
   std::cout << "Motor Speed Setting: " << device.get_motor_speed()
