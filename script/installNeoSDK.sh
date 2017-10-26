@@ -5,6 +5,7 @@
 git clone https://github.com/micvision/neo-sdk.git
 
 cd neo-sdk
+git checkout newlidar
 
 mkdir -p build
 cd build
