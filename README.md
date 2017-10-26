@@ -67,7 +67,7 @@ Returns the neo sdk version.
 
 ``` C++
 static neo_error_s neo_error_construct(const char*);
-void neo_error_destruct(neo_error_s);
+void neo_error_destruct(neo_error_s*);
 ```
 
 Construct and destruct of neo_error_s.
@@ -103,20 +103,11 @@ void neo_device_set_motor_speed(neo_device_s, int32_t, neo_error_s*);   // C
 
 Neo device get/set motor speed [range: 0-10].
 
-``` C++
-int32_t get_sample_rate(void);                                           // C++
-void set_sample_rate(int32_t rate);                                      // C++
-
-int32_t neo_device_get_sample_rate(neo_device_s, neo_error_s*);          // C
-void neo_device_set_sample_rate(neo_device_s, int32_t, neo_error_s*);    // C
-```
-
-Neo device set/get the sample rate.
 
 ``` C++
 scan get_scan(void);                                                    // C++
 
-neo_scan_s neo_device_get_scan(neo_device_s, neo_error_s);              // C
+neo_scan_s neo_device_get_scan(neo_device_s, neo_error_s*);              // C
 int32_t neo_scan_get_number_of_samples(neo_scan_s);                     // C
 int32_t neo_scan_get_angle(neo_scan_s, int32_t);                        // C
 int32_t neo_scan_get_distance(neo_scan_s, int32_t);                     // C
@@ -128,8 +119,10 @@ Get the `number`/`angle`/`distance`/`signal strength` of scan.
 
 ``` C++
 void reset(void);                                                       // C++
+void calibrate(void);                                                   // C++
 
-void neo_device_reset(neo_device_s, neo_error_s);                       // C
+void neo_device_reset(neo_device_s, neo_error_s*);                       // C
+void neo_device_calibrate(neo_device_s, neo_errors_s*);                 // C
 ```
 
 Reset the neo device.
