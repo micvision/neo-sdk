@@ -251,11 +251,8 @@ static bool wait_readable(device_s serial, error_s* error) {
   fd_set readfds;
   FD_ZERO(&readfds);
   FD_SET(serial->fd, &readfds);
-  struct timeval tv;
-  tv.tv_sec = 10;
-  tv.tv_usec = 0;
 
-  int32_t ret = select(serial->fd + 1, &readfds, nullptr, nullptr, &tv);
+  int32_t ret = select(serial->fd + 1, &readfds, nullptr, nullptr, nullptr);
 
   if (ret == -1) {
     // Select was interrupted
