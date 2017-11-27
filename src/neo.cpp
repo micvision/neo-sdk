@@ -469,14 +469,7 @@ void neo_device_calibrate(neo_device_s device, neo_error_s* error) {
     return;
   }
 
-  int time = 0;
   printf("wait device calibration...  \n");
-  while (time < 10) {
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-    ++time;
-    printf("%d  \n", time);
-  }
-  printf("\n");
 
 
   neo::protocol::response_header_s response;

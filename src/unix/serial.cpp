@@ -312,8 +312,8 @@ device_s device_construct(const char* port, int32_t bitrate, error_s* error) {
   // IEXTEN
 
   // Control Flags
-  options.c_cflag |= (CLOCAL | CREAD | CS8);
   options.c_cflag &= ~(PARENB | CSTOPB | CSIZE);
+  options.c_cflag |= (CLOCAL | CREAD | CS8);
 
   // setup baud rate
   error_s bauderror = nullptr;
