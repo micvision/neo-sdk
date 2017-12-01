@@ -69,6 +69,11 @@ neo_device_s neo_device_construct(const char* port, int32_t bitrate, neo_error_s
 
   auto out = new neo_device{serial, /*is_scanning=*/false};
 
+  // Stop all process to recovery
+  out->is_scanning = true;
+  neo_error_s stoperror = nullptr;
+  neo_device_stop_scanning(out, &stoperror);
+
   // Setting motor running
   neo_error_s MS05_error = nullptr;
   neo_device_set_motor_speed(out, 5, &MS05_error);
@@ -96,8 +101,6 @@ neo_device_s neo_device_construct(const char* port, int32_t bitrate, neo_error_s
     return nullptr;
   }
 
-  out->is_scanning = true;
-  neo_error_s stoperror = nullptr;
   neo_device_stop_scanning(out, &stoperror);
 
   if (stoperror) {
