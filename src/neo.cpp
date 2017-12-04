@@ -83,6 +83,9 @@ neo_device_s neo_device_construct(const char* port, int32_t bitrate, neo_error_s
     return nullptr;
   }
 
+  printf("Wait the motor speed stabilizes...\n");
+  std::this_thread::sleep_for(std::chrono::seconds(5));
+
   // device calibration
   neo_error_s CS_error = nullptr;
   neo_device_calibrate(out, &CS_error);
