@@ -65,7 +65,7 @@ device_s device_construct(const char* port, int32_t bitrate, error_s* error) {
   NEO_ASSERT(bitrate > 0);
   NEO_ASSERT(error);
 
-  if (bitrate != 115200) {
+  if (bitrate != 230400) {
     *error = error_construct("baud rate is not supported");
     return nullptr;
   }
@@ -107,7 +107,7 @@ device_s device_construct(const char* port, int32_t bitrate, error_s* error) {
   }
 
   // set the parameters to match the uART settings from the Neo Comm Protocol
-  dcb_serial_params.BaudRate = CBR_115200; // BaudRate = 115200 (115.2kb/s)
+  dcb_serial_params.BaudRate = 230400;     // BaudRate = 230400 (230.4kb/s)
   dcb_serial_params.ByteSize = 8;          // ByteSize = 8
   dcb_serial_params.StopBits = ONESTOPBIT; // # StopBits = 1
   dcb_serial_params.Parity = NOPARITY;     // Parity = None
@@ -128,7 +128,7 @@ device_s device_construct(const char* port, int32_t bitrate, error_s* error) {
     return nullptr;
   }
   timeouts.ReadIntervalTimeout = 50;         // max time between arrival of two bytes before ReadFile() returns
-  timeouts.ReadTotalTimeoutConstant = 50;    // used to calculate total time-out period for read operations
+  timeouts.ReadTotalTimeoutConstant = 10000; // used to calculate total time-out period for read operations
   timeouts.ReadTotalTimeoutMultiplier = 10;  // used to calculate total time-out period for read operations
   timeouts.WriteTotalTimeoutConstant = 50;   // used to calculate total time-out period for write operations
   timeouts.WriteTotalTimeoutMultiplier = 10; // used to calculate total time-out period for write operations
