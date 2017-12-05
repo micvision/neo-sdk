@@ -5,6 +5,7 @@
 
 #include <chrono>
 #include <thread>
+#include <algorithm>
 
 int32_t neo_get_version(void) { return NEO_VERSION; }
 bool neo_is_abi_compatible(void) { return neo_get_version() >> 16u == NEO_VERSION_MAJOR; }
@@ -20,12 +21,25 @@ typedef struct neo_device {
 
 #define NEO_MAX_SAMPLES 4096
 
-typedef struct neo_scan {
-  int32_t angle[NEO_MAX_SAMPLES];           // in millidegrees
-  int32_t distance[NEO_MAX_SAMPLES];        // in cm
+typedef struct sample {
+  float angle;             // in millidegrees
+  int32_t distance;        // in cm
   // int32_t signal_strength[NEO_MAX_SAMPLES]; // range 0:255
+} sample;
+
+typedef struct neo_scan {
+  sample samples[NEO_MAX_SAMPLES];
   int32_t count;
 } neo_scan;
+
+static sample parse_payload(const neo::protocol::response_scan_packet_s &msg) {
+  sample ret;
+  ret.angle = (float)msg.angle * 7.8125f;  // 7.8125f = 1000.0f / 128.0f
+  ret.distance = ((int32_t)msg.distance_low)
+    + ((int32_t)msg.distance_high << 5);
+
+  return ret;
+}
 
 // Constructor hidden from users
 static neo_error_s neo_error_construct(const char* what) {
@@ -211,17 +225,15 @@ neo_scan_s neo_device_get_scan(neo_device_s device, neo_error_s* error) {
 
   neo::protocol::error_s protocolerror = nullptr;
 
-  neo::protocol::response_scan_packet_s responses[NEO_MAX_SAMPLES];
+  // neo::protocol::response_scan_packet_s responses[NEO_MAX_SAMPLES];
   static neo::protocol::response_scan_packet_s responses_syns;
+  neo::protocol::response_scan_packet_s response;
 
   int32_t received = 0;
+  sample buffer[NEO_MAX_SAMPLES];
 
   while (received < NEO_MAX_SAMPLES) {
-    if (0 == received) {
-      responses[received++] = responses_syns;
-      continue;
-    }
-    neo::protocol::read_response_scan(device->serial, &responses[received], &protocolerror);
+    neo::protocol::read_response_scan(device->serial, &response, &protocolerror);
 
     if (protocolerror) {
       *error = neo_error_construct("unable to receive neo scan response");
@@ -229,31 +241,29 @@ neo_scan_s neo_device_get_scan(neo_device_s device, neo_error_s* error) {
       return nullptr;
     }
 
-    //const bool is_sync = responses[received].sync_error & neo::protocol::response_scan_packet_sync::sync;
-    //const bool has_error = (responses[received].sync_error >> 1) != 0; // shift out sync bit, others are errors
-    const bool is_sync = responses[received].s1
-        & neo::protocol::response_scan_packet_sync::sync;
+    if ( 0 == received ) {
+      buffer[received++] = parse_payload(responses_syns);
+      buffer[received++] = parse_payload(response);
+      continue;
+    }
 
-    received++;
+    const bool is_sync = response.s1
+      & neo::protocol::response_scan_packet_sync::sync;
 
-    if (is_sync) {
-      responses_syns = responses[received-1];
+    if ( is_sync ) {
+      responses_syns = response;
       break;
     }
+
+    buffer[received] = parse_payload(response);
+    received++;
+
   }
 
   auto out = new neo_scan;
 
   out->count = received - 1;
-
-  for (int32_t it = 0; it < received - 1; ++it) {
-    // Convert angle from compact serial format to float (in degrees).
-    // In addition convert from degrees to milli-degrees.
-    out->angle[it] = static_cast<int32_t>(neo::protocol::u16_to_f32(responses[it].angle) * 1000.f);
-    out->distance[it] = ((int)responses[it].distance_low)
-        + ((int)responses[it].distance_high << 5);
-    //out->signal_strength[it] = responses[it].signal_strength;
-  }
+  std::copy_n(std::begin(buffer), received - 1, std::begin(out->samples));
 
   return out;
 }
@@ -265,18 +275,18 @@ int32_t neo_scan_get_number_of_samples(neo_scan_s scan) {
   return scan->count;
 }
 
-int32_t neo_scan_get_angle(neo_scan_s scan, int32_t sample) {
+float neo_scan_get_angle(neo_scan_s scan, int32_t sample) {
   NEO_ASSERT(scan);
   NEO_ASSERT(sample >= 0 && sample < scan->count && "sample index out of bounds");
 
-  return scan->angle[sample];
+  return scan->samples[sample].angle;
 }
 
 int32_t neo_scan_get_distance(neo_scan_s scan, int32_t sample) {
   NEO_ASSERT(scan);
   NEO_ASSERT(sample >= 0 && sample < scan->count && "sample index out of bounds");
 
-  return scan->distance[sample];
+  return scan->samples[sample].distance;
 }
 
 /*

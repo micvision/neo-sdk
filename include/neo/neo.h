@@ -59,7 +59,7 @@ NEO_API neo_scan_s neo_device_get_scan(neo_device_s device, neo_error_s* error);
 NEO_API void neo_scan_destruct(neo_scan_s scan);
 
 NEO_API int32_t neo_scan_get_number_of_samples(neo_scan_s scan);
-NEO_API int32_t neo_scan_get_angle(neo_scan_s scan, int32_t sample);
+NEO_API float neo_scan_get_angle(neo_scan_s scan, int32_t sample);
 NEO_API int32_t neo_scan_get_distance(neo_scan_s scan, int32_t sample);
 NEO_API int32_t neo_scan_get_signal_strength(neo_scan_s scan, int32_t sample);
 

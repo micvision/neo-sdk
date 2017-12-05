@@ -31,7 +31,7 @@ struct device_error final : std::runtime_error {
 // Interface
 
 struct sample {
-  const std::int32_t angle;
+  const float angle;
   const std::int32_t distance;
   //const std::int32_t signal_strength;
 };
