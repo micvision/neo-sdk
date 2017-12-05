@@ -2,6 +2,7 @@
 #include "neo.h"
 #include "protocol.h"
 #include "serial.h"
+#include "queue.hpp"
 
 #include <chrono>
 #include <thread>
@@ -17,6 +18,14 @@ typedef struct neo_error {
 typedef struct neo_device {
   neo::serial::device_s serial; // serial port communication
   bool is_scanning;
+
+  std::atomic<bool> stop_thread;
+  struct Element {
+    std::unique_ptr<neo_scan> scan;
+    std::exception_ptr error;
+  };
+
+  neo::queue::queue<Element> scan_queue;
 } neo_device;
 
 #define NEO_MAX_SAMPLES 4096
@@ -39,6 +48,42 @@ static sample parse_payload(const neo::protocol::response_scan_packet_s &msg) {
     + ((int32_t)msg.distance_high << 5);
 
   return ret;
+}
+
+static void neo_device_accumulate_scans(neo_device_s device) {
+  NEO_ASSERT(device);
+  NEO_ASSERT(device->is_scanning);
+
+  neo::protocol::error_s protocolerror = nullptr;
+  sample buffer[NEO_MAX_SAMPLES];
+  int32_t received = 0;
+
+  while ( !device->stop_thread && received < NEO_MAX_SAMPLES ) {
+    neo::protocol::response_scan_packet_s response;
+    neo::protocol::read_response_scan(device->serial, &response,
+        &protocolerror);
+
+    if ( protocolerror ) {
+      neo::protocol::error_destruct(protocolerror);
+      return;
+    }
+
+    buffer[received++] = parse_payload(response);
+
+    const bool is_sync = response.s1
+      & neo::protocol::response_scan_packet_sync::sync;
+
+    if ( is_sync && received > 1 ) {
+      auto out = std::unique_ptr<neo_scan>(new neo_scan);
+      out->count = received - 1;
+      std::copy_n(std::begin(buffer), received - 1, std::begin(out->samples));
+
+      device ->scan_queue.enqueue({std::move(out), nullptr});
+
+      buffer[0] = buffer[received - 1];
+      received = 1;
+    }
+  }
 }
 
 // Constructor hidden from users
@@ -81,10 +126,10 @@ neo_device_s neo_device_construct(const char* port, int32_t bitrate, neo_error_s
     return nullptr;
   }
 
-  auto out = new neo_device{serial, /*is_scanning=*/false};
+  auto out = new neo_device{serial, /*is_scanning=*/true,
+  /*stop_thread=*/{false}, /*scan_queue=*/{20}};
 
   // Stop all process to recovery
-  out->is_scanning = true;
   neo_error_s stoperror = nullptr;
   neo_device_stop_scanning(out, &stoperror);
 
@@ -167,7 +212,12 @@ void neo_device_start_scanning(neo_device_s device, neo_error_s* error) {
     return;
   }
 
+  device->scan_queue.clear();
   device->is_scanning = true;
+  device->stop_thread = false;
+
+  std::thread th = std::thread(neo_device_accumulate_scans, device);
+  th.detach();
 }
 
 void neo_device_stop_scanning(neo_device_s device, neo_error_s* error) {
@@ -223,49 +273,13 @@ neo_scan_s neo_device_get_scan(neo_device_s device, neo_error_s* error) {
   NEO_ASSERT(error);
   NEO_ASSERT(device->is_scanning);
 
-  neo::protocol::error_s protocolerror = nullptr;
+  auto out = device->scan_queue.dequeue();
 
-  // neo::protocol::response_scan_packet_s responses[NEO_MAX_SAMPLES];
-  static neo::protocol::response_scan_packet_s responses_syns;
-  neo::protocol::response_scan_packet_s response;
-
-  int32_t received = 0;
-  sample buffer[NEO_MAX_SAMPLES];
-
-  while (received < NEO_MAX_SAMPLES) {
-    neo::protocol::read_response_scan(device->serial, &response, &protocolerror);
-
-    if (protocolerror) {
-      *error = neo_error_construct("unable to receive neo scan response");
-      neo::protocol::error_destruct(protocolerror);
-      return nullptr;
-    }
-
-    if ( 0 == received ) {
-      buffer[received++] = parse_payload(responses_syns);
-      buffer[received++] = parse_payload(response);
-      continue;
-    }
-
-    const bool is_sync = response.s1
-      & neo::protocol::response_scan_packet_sync::sync;
-
-    if ( is_sync ) {
-      responses_syns = response;
-      break;
-    }
-
-    buffer[received] = parse_payload(response);
-    received++;
-
+  if ( out.error != nullptr ) {
+    std::rethrow_exception(out.error);
   }
 
-  auto out = new neo_scan;
-
-  out->count = received - 1;
-  std::copy_n(std::begin(buffer), received - 1, std::begin(out->samples));
-
-  return out;
+  return out.scan.release();
 }
 
 int32_t neo_scan_get_number_of_samples(neo_scan_s scan) {
