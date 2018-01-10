@@ -21,6 +21,12 @@ chmod +x installNeoSDK.sh
 sudo ./installNeoSDK.sh
 ```
 
+You can test with command:
+```bash
+# under the build/ directory
+# ./example device baudrate
+./example /dev/ttyUSB0 230400
+```
 
 For Windows users open a command prompt with administrative privileges:
 

@@ -8,7 +8,7 @@
 
 int main(int argc, char* argv[]) try {
   if (argc != 3) {
-    std::cerr << "Usage: ./example-c++ device baudrate\n";
+    std::cerr << "Usage: ./example device baudrate\n";
     return EXIT_FAILURE;
   }
 
