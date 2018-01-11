@@ -49,7 +49,7 @@ NEO_API const char* neo_error_message(neo_error_s error);
 NEO_API void neo_error_destruct(neo_error_s error);
 
 NEO_API neo_device_s neo_device_construct_simple(const char* port, neo_error_s* error);
-NEO_API neo_device_s neo_device_construct(const char* port, int32_t bitrate, neo_error_s* error);
+NEO_API neo_device_s neo_device_construct(const char* port, int32_t baudrate, neo_error_s* error);
 NEO_API void neo_device_destruct(neo_device_s device);
 
 NEO_API void neo_device_start_scanning(neo_device_s device, neo_error_s* error);

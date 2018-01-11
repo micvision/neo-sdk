@@ -54,7 +54,7 @@ Then be sure to add the installation directories for the library and the header 
 
 ### Usage
 
-- Include `<neo/neo.h>` for the C interface or `<neo/neo.hpp>` for the C++ interface.
+- Include `<neo/neo.hpp>` for the C++ interface.
 - Link `libneo.so` with `-lneo`.
 
 If you used CMAKE build system, adding below to your `CMakeLists.txt`:
@@ -63,14 +63,16 @@ If you used CMAKE build system, adding below to your `CMakeLists.txt`:
     target_link_libraries(.. ${LIBNEO_LIBRARY})
     target_include_directories(.. ${LIBNEO_INCLUDE_DIR})
 
-### APIs
+### APIs (C++)
 
+1. 
 ``` C++
 int32_t neo_get_version(void);
 ```
 
 Returns the neo sdk version.
 
+2.
 ``` C++
 static neo_error_s neo_error_construct(const char*);
 void neo_error_destruct(neo_error_s*);
@@ -78,57 +80,42 @@ void neo_error_destruct(neo_error_s*);
 
 Construct and destruct of neo_error_s.
 
+3.
 ``` C++
-neo(const char*, neo_error_s*);                                           // C++
-neo(const char*, int32_t, neo_error_s*);                                  // C++
-
-neo_device_s neo_device_construct_simple(const char*, neo_error_s*);      // C
-neo_device_s neo_device_construct(const char*, int32_t, neo_error_s*);    // C
+neo(const char* port);
+neo(const char* port, int32_t baudrate);
 ```
 
 Construct of neo device based on a serial device port (e.g. `/dev/ttyACM0` on Linux or `COM8` on Windows)
-or a `bitrate` (default 115200).
+or a `baudrate` (default 115200).
 
+4.
 ``` C++
-void start_scanning(void);                                       // C++
-void stop_scanning(void);                                        // C++
-
-void neo_device_start_scanning(neo_device_s, neo_error_s*);      // C
-void neo_device_stop_scanning(neo_device_s, neo_error_s*);       // C
+void start_scanning(void);
+void stop_scanning(void);
 ```
 
 Neo device start/stop scanning api.
 
+5.
 ``` C++
-ini32_t get_motor_speed(void);                                          // C++
-void set_motor_speed(int32_t speed);                                    // C++
-
-int32_t neo_device_get_motor_speed(neo_device_s, neo_error_s*);         // C
-void neo_device_set_motor_speed(neo_device_s, int32_t, neo_error_s*);   // C
+int32_t get_motor_speed(void);
+void set_motor_speed(int32_t speed);
 ```
 
 Neo device get/set motor speed [range: 0-10].
 
-
+6.
 ``` C++
-scan get_scan(void);                                                    // C++
-
-neo_scan_s neo_device_get_scan(neo_device_s, neo_error_s*);              // C
-int32_t neo_scan_get_number_of_samples(neo_scan_s);                     // C
-int32_t neo_scan_get_angle(neo_scan_s, int32_t);                        // C
-int32_t neo_scan_get_distance(neo_scan_s, int32_t);                     // C
-int32_t neo_scan_get_signal_strength(neo_scan_s, int32_t);              // C
+scan get_scan(void);
 ```
 
 Neo device get the scan data.
-Get the `number`/`angle`/`distance`/`signal strength` of scan.
 
+7.
 ``` C++
-void reset(void);                                                       // C++
-void calibrate(void);                                                   // C++
-
-void neo_device_reset(neo_device_s, neo_error_s*);                       // C
-void neo_device_calibrate(neo_device_s, neo_errors_s*);                 // C
+void reset(void);
+void calibrate(void);
 ```
 
 Reset the neo device.
