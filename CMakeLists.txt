@@ -74,7 +74,7 @@ install(TARGETS neo DESTINATION lib)
 install(DIRECTORY include/neo DESTINATION include)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/include/neo/config.h DESTINATION include/neo)
 
-add_executable(example examples/example.cc)
+add_executable(example examples/example.cpp)
 target_include_directories(example PRIVATE include include/neo ${CMAKE_CURRENT_BINARY_DIR}/include)
 target_link_libraries(example neo ${CMAKE_THREAD_LIBS_INIT})
 
