@@ -16,7 +16,7 @@ sudo ldconfig
 You can also using the script to install the SDK under ubuntu.
 
 ```bash
-wget https://raw.githubusercontent.com/micvision/neo-sdk/newlidar/script/installNeoSDK.sh
+wget https://raw.githubusercontent.com/micvision/neo-sdk/neo-f1/script/installNeoSDK.sh
 chmod +x installNeoSDK.sh
 sudo ./installNeoSDK.sh
 ```
