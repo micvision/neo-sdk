@@ -43,7 +43,7 @@ struct scan {
 class neo {
 public:
   neo(const char* port);
-  neo(const char* port, std::int32_t bitrate);
+  neo(const char* port, std::int32_t baudrate);
 
   void start_scanning();
   void stop_scanning();
@@ -85,8 +85,8 @@ struct error_to_exception {
 neo::neo(const char* port)
     : device{::neo_device_construct_simple(port, detail::error_to_exception{}), &::neo_device_destruct} {}
 
-neo::neo(const char* port, std::int32_t bitrate)
-    : device{::neo_device_construct(port, bitrate, detail::error_to_exception{}), &::neo_device_destruct} {}
+neo::neo(const char* port, std::int32_t baudrate)
+    : device{::neo_device_construct(port, baudrate, detail::error_to_exception{}), &::neo_device_destruct} {}
 
 void neo::start_scanning() { ::neo_device_start_scanning(device.get(), detail::error_to_exception{}); }
 

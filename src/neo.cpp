@@ -112,13 +112,13 @@ neo_device_s neo_device_construct_simple(const char* port, neo_error_s* error) {
   return neo_device_construct(port, 115200, error);
 }
 
-neo_device_s neo_device_construct(const char* port, int32_t bitrate, neo_error_s* error) {
+neo_device_s neo_device_construct(const char* port, int32_t baudrate, neo_error_s* error) {
   NEO_ASSERT(port);
-  NEO_ASSERT(bitrate > 0);
+  NEO_ASSERT(baudrate > 0);
   NEO_ASSERT(error);
 
   neo::serial::error_s serialerror = nullptr;
-  neo::serial::device_s serial = neo::serial::device_construct(port, bitrate, &serialerror);
+  neo::serial::device_s serial = neo::serial::device_construct(port, baudrate, &serialerror);
 
   if (serialerror) {
     *error = neo_error_construct(neo::serial::error_message(serialerror));
