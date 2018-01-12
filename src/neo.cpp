@@ -226,6 +226,7 @@ void neo_device_stop_scanning(neo_device_s device, neo_error_s* error) {
 
   if (!device->is_scanning)
     return;
+  device->stop_thread = true;
 
   neo::protocol::error_s protocolerror = nullptr;
   neo::protocol::write_command(device->serial, neo::protocol::DATA_ACQUISITION_STOP, &protocolerror);
