@@ -1,22 +1,28 @@
 #include <stdio.h>
 #include "neo.h"
-#include "protocol.h"
-#include "serial.h"
+#include "protocol.hpp"
+#include "serial.hpp"
 #include "queue.hpp"
+#include "error.hpp"
 
 #include <chrono>
 #include <thread>
 #include <algorithm>
+#include <utility>
+#include <memory>
+#include <string>
 
 int32_t neo_get_version(void) { return NEO_VERSION; }
-bool neo_is_abi_compatible(void) { return neo_get_version() >> 16u == NEO_VERSION_MAJOR; }
+bool neo_is_abi_compatible(void) {
+  return neo_get_version() >> 16u == NEO_VERSION_MAJOR;
+}
 
-typedef struct neo_error {
-  const char* what; // always literal, do not deallocate
-} neo_error;
+struct neo_error {
+  std::string what;
+};
 
-typedef struct neo_device {
-  neo::serial::device_s serial; // serial port communication
+struct neo_device {
+  neo::serial::device_s serial;  // serial port communication
   bool is_scanning;
 
   std::atomic<bool> stop_thread;
@@ -26,47 +32,39 @@ typedef struct neo_device {
   };
 
   neo::queue::queue<Element> scan_queue;
-} neo_device;
+};
 
 #define NEO_MAX_SAMPLES 4096
 
-typedef struct sample {
-  float angle;             // in millidegrees
+struct sample {
+  float angle;             // in degrees
   int32_t distance;        // in cm
   // int32_t signal_strength[NEO_MAX_SAMPLES]; // range 0:255
-} sample;
+};
 
-typedef struct neo_scan {
+struct neo_scan {
   sample samples[NEO_MAX_SAMPLES];
   int32_t count;
-} neo_scan;
+};
 
 static sample parse_payload(const neo::protocol::response_scan_packet_s &msg) {
   sample ret;
-  ret.angle = (float)msg.angle * 7.8125f;  // 7.8125f = 1000.0f / 128.0f
+  ret.angle = static_cast<float>(msg.angle) / 128; // angle / 128
   ret.distance = ((int32_t)msg.distance_low)
     + ((int32_t)msg.distance_high << 5);
 
   return ret;
 }
 
-static void neo_device_accumulate_scans(neo_device_s device) {
+static void neo_device_accumulate_scans(neo_device_s device) try {
   NEO_ASSERT(device);
   NEO_ASSERT(device->is_scanning);
 
-  neo::protocol::error_s protocolerror = nullptr;
   sample buffer[NEO_MAX_SAMPLES];
   int32_t received = 0;
 
   while ( !device->stop_thread && received < NEO_MAX_SAMPLES ) {
-    neo::protocol::response_scan_packet_s response;
-    neo::protocol::read_response_scan(device->serial, &response,
-        &protocolerror);
-
-    if ( protocolerror ) {
-      neo::protocol::error_destruct(protocolerror);
-      return;
-    }
+    const auto response = neo::protocol::read_response_scan(device->serial);
 
     buffer[received++] = parse_payload(response);
 
@@ -84,6 +82,9 @@ static void neo_device_accumulate_scans(neo_device_s device) {
       received = 1;
     }
   }
+} catch (...) {
+  // worker thread is dead at this point
+  device->scan_queue.enqueue({nullptr, std::current_exception()});
 }
 
 // Constructor hidden from users
@@ -97,7 +98,7 @@ static neo_error_s neo_error_construct(const char* what) {
 const char* neo_error_message(neo_error_s error) {
   NEO_ASSERT(error);
 
-  return error->what;
+  return error->what.c_str();
 }
 
 void neo_error_destruct(neo_error_s error) {
@@ -106,87 +107,63 @@ void neo_error_destruct(neo_error_s error) {
   delete error;
 }
 
-neo_device_s neo_device_construct_simple(const char* port, neo_error_s* error) {
+neo_device_s neo_device_construct_simple(const char* port,
+    neo_error_s* error) try {
   NEO_ASSERT(error);
 
   return neo_device_construct(port, 115200, error);
+} catch ( const std::exception& e ) {
+  *error = neo_error_construct(e.what());
+  return nullptr;
 }
 
-neo_device_s neo_device_construct(const char* port, int32_t baudrate, neo_error_s* error) {
+neo_device_s neo_device_construct(const char* port, int32_t baudrate,
+    neo_error_s* error) try {
   NEO_ASSERT(port);
   NEO_ASSERT(baudrate > 0);
   NEO_ASSERT(error);
 
-  neo::serial::error_s serialerror = nullptr;
-  neo::serial::device_s serial = neo::serial::device_construct(port, baudrate, &serialerror);
-
-  if (serialerror) {
-    *error = neo_error_construct(neo::serial::error_message(serialerror));
-    neo::serial::error_destruct(serialerror);
-    return nullptr;
-  }
+  neo::serial::device_s serial = neo::serial::device_construct(port, baudrate);
 
   auto out = new neo_device{serial, /*is_scanning=*/true,
   /*stop_thread=*/{false}, /*scan_queue=*/{20}};
 
   // Stop all process to recovery
-  neo_error_s stoperror = nullptr;
-  neo_device_stop_scanning(out, &stoperror);
+  neo_device_stop_scanning(out, error);
 
   // Setting motor running
-  neo_error_s MS05_error = nullptr;
-  neo_device_set_motor_speed(out, 5, &MS05_error);
-  if (MS05_error) {
-    *error = MS05_error;
-    neo_device_destruct(out);
-    return nullptr;
-  }
-
-  printf("Wait the motor speed stabilizes...\n");
-  std::this_thread::sleep_for(std::chrono::seconds(5));
+  neo_device_set_motor_speed(out, 5, error);
 
   // device calibration
-  neo_error_s CS_error = nullptr;
-  neo_device_calibrate(out, &CS_error);
-  if (CS_error) {
-    *error = CS_error;
-    neo_device_destruct(out);
-    return nullptr;
-  }
+  neo_device_calibrate(out, error);
 
   // Stop motor
-  neo_error_s MS00_error = nullptr;
-  neo_device_set_motor_speed(out, 0, &MS00_error);
-  if (MS00_error) {
-    *error = MS00_error;
-    neo_device_destruct(out);
-    return nullptr;
-  }
+  // neo_device_set_motor_speed(out, 0, error);
 
-  neo_device_stop_scanning(out, &stoperror);
+  neo_device_stop_scanning(out, error);
 
-  if (stoperror) {
-    *error = stoperror;
-    neo_device_destruct(out);
-    return nullptr;
-  }
 
   return out;
+} catch ( const std::exception& e ) {
+  *error = neo_error_construct(e.what());
+  return nullptr;
 }
 
 void neo_device_destruct(neo_device_s device) {
   NEO_ASSERT(device);
 
-  neo_error_s ignore = nullptr;
-  neo_device_stop_scanning(device, &ignore);
-  (void)ignore; // nothing we can do here
+  try {
+    neo_error_s ignore = nullptr;
+    neo_device_stop_scanning(device, &ignore);
+  } catch (...) {
+    // nothing we can do here
+  }
 
   neo::serial::device_destruct(device->serial);
-
   delete device;
 }
 
-void neo_device_start_scanning(neo_device_s device, neo_error_s* error) {
+void neo_device_start_scanning(neo_device_s device, neo_error_s* error) try {
   NEO_ASSERT(device);
   NEO_ASSERT(error);
   NEO_ASSERT(!device->is_scanning);
@@ -194,23 +171,11 @@ void neo_device_start_scanning(neo_device_s device, neo_error_s* error) {
   if (device->is_scanning)
     return;
 
-  neo::protocol::error_s protocolerror = nullptr;
-  neo::protocol::write_command(device->serial, neo::protocol::DATA_ACQUISITION_START, &protocolerror);
+  neo::protocol::write_command(device->serial,
+      neo::protocol::DATA_ACQUISITION_START);
 
-  if (protocolerror) {
-    *error = neo_error_construct("unable to send start scanning command");
-    neo::protocol::error_destruct(protocolerror);
-    return;
-  }
-
-  neo::protocol::response_header_s response;
-  neo::protocol::read_response_header(device->serial, neo::protocol::DATA_ACQUISITION_START, &response, &protocolerror);
-
-  if (protocolerror) {
-    *error = neo_error_construct("unable to receive start scanning command response");
-    neo::protocol::error_destruct(protocolerror);
-    return;
-  }
+  neo::protocol::read_response_header(device->serial,
+      neo::protocol::DATA_ACQUISITION_START);
 
   device->scan_queue.clear();
   device->is_scanning = true;
@@ -218,9 +183,11 @@ void neo_device_start_scanning(neo_device_s device, neo_error_s* error) {
 
   std::thread th = std::thread(neo_device_accumulate_scans, device);
   th.detach();
+} catch (const std::exception& e) {
+  *error = neo_error_construct(e.what());
 }
 
-void neo_device_stop_scanning(neo_device_s device, neo_error_s* error) {
+void neo_device_stop_scanning(neo_device_s device, neo_error_s* error) try {
   NEO_ASSERT(device);
   NEO_ASSERT(error);
 
@@ -228,48 +195,34 @@ void neo_device_stop_scanning(neo_device_s device, neo_error_s* error) {
     return;
   device->stop_thread = true;
 
-  neo::protocol::error_s protocolerror = nullptr;
-  neo::protocol::write_command(device->serial, neo::protocol::DATA_ACQUISITION_STOP, &protocolerror);
+  neo::protocol::write_command(device->serial,
+      neo::protocol::DATA_ACQUISITION_STOP);
 
-  if (protocolerror) {
-    *error = neo_error_construct("unable to send stop scanning command");
-    neo::protocol::error_destruct(protocolerror);
-    return;
+  // Wait some time for a few reasons: reference to sweep-sdk
+  std::this_thread::sleep_for(std::chrono::milliseconds(35));
+
+  try {
+    neo::protocol::read_response_header(device->serial,
+        neo::protocol::DATA_ACQUISITION_STOP);
+  } catch ( const std::exception& ignore ) {
+    (void) ignore;
   }
 
-  // Wait until device stopped sending
-  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  // Flush any bytes left over
+  neo::serial::device_flush(device->serial);
 
-  neo::serial::error_s serialerror = nullptr;
-  neo::serial::device_flush(device->serial, &serialerror);
+  neo::protocol::write_command(device->serial,
+      neo::protocol::DATA_ACQUISITION_STOP);
 
-  if (serialerror) {
-    *error = neo_error_construct("unable to flush serial device for stopping scanning command");
-    neo::serial::error_destruct(serialerror);
-    return;
-  }
-
-  neo::protocol::write_command(device->serial, neo::protocol::DATA_ACQUISITION_STOP, &protocolerror);
-
-  if (protocolerror) {
-    *error = neo_error_construct("unable to send stop scanning command");
-    neo::protocol::error_destruct(protocolerror);
-    return;
-  }
-
-  neo::protocol::response_header_s response;
-  neo::protocol::read_response_header(device->serial, neo::protocol::DATA_ACQUISITION_STOP, &response, &protocolerror);
-
-  if (protocolerror) {
-    *error = neo_error_construct("unable to receive stop scanning command response");
-    neo::protocol::error_destruct(protocolerror);
-    return;
-  }
+  neo::protocol::read_response_header(device->serial,
+      neo::protocol::DATA_ACQUISITION_STOP);
 
   device->is_scanning = false;
+} catch ( const std::exception& e ) {
+  *error = neo_error_construct(e.what());
 }
 
-neo_scan_s neo_device_get_scan(neo_device_s device, neo_error_s* error) {
+neo_scan_s neo_device_get_scan(neo_device_s device, neo_error_s* error) try {
   NEO_ASSERT(device);
   NEO_ASSERT(error);
   NEO_ASSERT(device->is_scanning);
@@ -281,6 +234,9 @@ neo_scan_s neo_device_get_scan(neo_device_s device, neo_error_s* error) {
   }
 
   return out.scan.release();
+} catch ( const std::exception& e ) {
+  *error = neo_error_construct(e.what());
+  return nullptr;
 }
 
 int32_t neo_scan_get_number_of_samples(neo_scan_s scan) {
@@ -292,14 +248,16 @@ int32_t neo_scan_get_number_of_samples(neo_scan_s scan) {
 
 float neo_scan_get_angle(neo_scan_s scan, int32_t sample) {
   NEO_ASSERT(scan);
-  NEO_ASSERT(sample >= 0 && sample < scan->count && "sample index out of bounds");
+  NEO_ASSERT(sample >= 0 && sample < scan->count &&
+      "sample index out of bounds.");
 
   return scan->samples[sample].angle;
 }
 
 int32_t neo_scan_get_distance(neo_scan_s scan, int32_t sample) {
   NEO_ASSERT(scan);
-  NEO_ASSERT(sample >= 0 && sample < scan->count && "sample index out of bounds");
+  NEO_ASSERT(sample >= 0 && sample < scan->count &&
+      "sample index out of bounds.");
 
   return scan->samples[sample].distance;
 }
@@ -307,9 +265,10 @@ int32_t neo_scan_get_distance(neo_scan_s scan, int32_t sample) {
 /*
 int32_t neo_scan_get_signal_strength(neo_scan_s scan, int32_t sample) {
   NEO_ASSERT(scan);
-  NEO_ASSERT(sample >= 0 && sample < scan->count && "sample index out of bounds");
+  NEO_ASSERT(sample >= 0 && sample < scan->count &&
+      "sample index out of bounds.");
 
-  return scan->signal_strength[sample];
+  return scan->samples[sample].signal_strength;
 }
 */
 
@@ -319,37 +278,27 @@ void neo_scan_destruct(neo_scan_s scan) {
   delete scan;
 }
 
-int32_t neo_device_get_motor_speed(neo_device_s device, neo_error_s* error) {
+int32_t neo_device_get_motor_speed(neo_device_s device,
+    neo_error_s* error) try {
   NEO_ASSERT(device);
   NEO_ASSERT(error);
   NEO_ASSERT(!device->is_scanning);
 
-  neo::protocol::error_s protocolerror = nullptr;
+  neo::protocol::write_command(device->serial, neo::protocol::MOTOR_INFORMATION);
 
-  neo::protocol::write_command(device->serial, neo::protocol::MOTOR_INFORMATION, &protocolerror);
-
-  if (protocolerror) {
-    *error = neo_error_construct("unable to send motor speed command");
-    neo::protocol::error_destruct(protocolerror);
-    return 0;
-  }
-
-  neo::protocol::response_info_motor_s response;
-  neo::protocol::read_response_info_motor(device->serial, neo::protocol::MOTOR_INFORMATION, &response, &protocolerror);
-
-  if (protocolerror) {
-    *error = neo_error_construct("unable to receive motor speed command response");
-    neo::protocol::error_destruct(protocolerror);
-    return 0;
-  }
+  const auto response = neo::protocol::read_response_info_motor(device->serial);
 
   int32_t speed = neo::protocol::ascii_bytes_to_integral(response.motor_speed);
   NEO_ASSERT(speed >= 0);
 
   return speed;
+} catch ( const std::exception& e ) {
+  *error = neo_error_construct(e.what());
+  return -1;
 }
 
-void neo_device_set_motor_speed(neo_device_s device, int32_t hz, neo_error_s* error) {
+void neo_device_set_motor_speed(neo_device_s device, int32_t hz,
+    neo_error_s* error) try {
   NEO_ASSERT(device);
   NEO_ASSERT(hz >= 0 && hz <= 10);
   NEO_ASSERT(error);
@@ -358,162 +307,44 @@ void neo_device_set_motor_speed(neo_device_s device, int32_t hz, neo_error_s* er
   uint8_t args[2] = {0};
   neo::protocol::integral_to_ascii_bytes(hz, args);
 
-  neo::protocol::error_s protocolerror = nullptr;
+  neo::protocol::write_command_with_arguments(device->serial,
+      neo::protocol::MOTOR_SPEED_ADJUST, args);
+  neo::protocol::read_response_param(device->serial,
+      neo::protocol::MOTOR_SPEED_ADJUST);
 
-  neo::protocol::write_command_with_arguments(device->serial, neo::protocol::MOTOR_SPEED_ADJUST, args, &protocolerror);
-
-  if (protocolerror) {
-    *error = neo_error_construct("unable to send motor speed command");
-    neo::protocol::error_destruct(protocolerror);
-    return;
+  if ( 0 != hz ) {
+    printf("Wait the motor speed stabilizes...\n");
+    std::this_thread::sleep_for(std::chrono::seconds(5));
   }
 
-  neo::protocol::response_param_s response;
-  neo::protocol::read_response_param(device->serial, neo::protocol::MOTOR_SPEED_ADJUST, &response, &protocolerror);
-
-  if (protocolerror) {
-    *error = neo_error_construct("unable to receive motor speed command response");
-    neo::protocol::error_destruct(protocolerror);
-    return;
-  }
+} catch ( const std::exception& e ) {
+  *error = neo_error_construct(e.what());
 }
 
-int32_t neo_device_get_sample_rate(neo_device_s device, neo_error_s* error) {
+void neo_device_reset(neo_device_s device, neo_error_s* error) try {
   NEO_ASSERT(device);
   NEO_ASSERT(error);
   NEO_ASSERT(!device->is_scanning);
 
-  neo::protocol::error_s protocolerror = nullptr;
-
-  neo::protocol::write_command(device->serial, neo::protocol::SAMPLE_RATE_INFORMATION, &protocolerror);
-
-  if (protocolerror) {
-    *error = neo_error_construct("unable to send sample rate command");
-    neo::protocol::error_destruct(protocolerror);
-    return 0;
-  }
-
-  neo::protocol::response_info_sample_rate_s response;
-  neo::protocol::read_response_info_sample_rate(device->serial, neo::protocol::SAMPLE_RATE_INFORMATION, &response,
-                                                  &protocolerror);
-
-  if (protocolerror) {
-    *error = neo_error_construct("unable to receive sample rate command response");
-    neo::protocol::error_destruct(protocolerror);
-    return 0;
-  }
-
-  // 01: 500-600Hz, 02: 750-800Hz, 03: 1000-1050Hz
-  int32_t code = neo::protocol::ascii_bytes_to_integral(response.sample_rate);
-  int32_t rate = 0;
-
-  switch (code) {
-  case 1:
-    rate = 500;
-    break;
-  case 2:
-    rate = 750;
-    break;
-  case 3:
-    rate = 1000;
-    break;
-  default:
-    NEO_ASSERT(false && "sample rate code unknown");
-  }
-
-  return rate;
+  neo::protocol::write_command(device->serial, neo::protocol::RESET_DEVICE);
+} catch ( const std::exception& e ) {
+  *error = neo_error_construct(e.what());
 }
 
-void neo_device_set_sample_rate(neo_device_s device, int32_t hz, neo_error_s* error) {
-  NEO_ASSERT(device);
-  NEO_ASSERT(hz == 500 || hz == 750 || hz == 1000);
-  NEO_ASSERT(error);
-  NEO_ASSERT(!device->is_scanning);
-
-  // 01: 500-600Hz, 02: 750-800Hz, 03: 1000-1050Hz
-  int32_t code = 1;
-
-  switch (hz) {
-  case 500:
-    code = 1;
-    break;
-  case 750:
-    code = 2;
-    break;
-  case 1000:
-    code = 3;
-    break;
-  default:
-    NEO_ASSERT(false && "sample rate unknown");
-  }
-
-  uint8_t args[2] = {0};
-  neo::protocol::integral_to_ascii_bytes(code, args);
-
-  neo::protocol::error_s protocolerror = nullptr;
-
-  neo::protocol::write_command_with_arguments(device->serial, neo::protocol::SAMPLE_RATE_ADJUST, args, &protocolerror);
-
-  if (protocolerror) {
-    *error = neo_error_construct("unable to send sample rate command");
-    neo::protocol::error_destruct(protocolerror);
-    return;
-  }
-
-  neo::protocol::response_param_s response;
-  neo::protocol::read_response_param(device->serial, neo::protocol::SAMPLE_RATE_ADJUST, &response, &protocolerror);
-
-  if (protocolerror) {
-    *error = neo_error_construct("unable to receive sample rate command response");
-    neo::protocol::error_destruct(protocolerror);
-    return;
-  }
-}
-
-void neo_device_reset(neo_device_s device, neo_error_s* error) {
+void neo_device_calibrate(neo_device_s device, neo_error_s* error) try {
   NEO_ASSERT(device);
   NEO_ASSERT(error);
   NEO_ASSERT(!device->is_scanning);
 
-  neo::protocol::error_s protocolerror = nullptr;
-
-  neo::protocol::write_command(device->serial, neo::protocol::RESET_DEVICE, &protocolerror);
-
-  if (protocolerror) {
-    *error = neo_error_construct("unable to send device reset command");
-    neo::protocol::error_destruct(protocolerror);
-    return;
-  }
-}
-void neo_device_calibrate(neo_device_s device, neo_error_s* error) {
-  NEO_ASSERT(device);
-  NEO_ASSERT(error);
-  NEO_ASSERT(!device->is_scanning);
-
-  neo::protocol::error_s protocolerror = nullptr;
   neo::protocol::write_command(device->serial,
-      neo::protocol::DEVICE_CALIBRATION, &protocolerror);
-
-  if (protocolerror) {
-    *error = neo_error_construct("unable to send device calibration command");
-    neo::protocol::error_destruct(protocolerror);
-    return;
-  }
+      neo::protocol::DEVICE_CALIBRATION);
 
   printf("wait device calibration...  \n");
 
 
-  neo::protocol::response_header_s response;
   neo::protocol::read_response_header(device->serial,
-                                      neo::protocol::DEVICE_CALIBRATION,
-                                      &response, &protocolerror);
-
-  if (protocolerror) {
-    *error =
-      neo_error_construct("unable to receive device calibration response");
-    neo::protocol::error_destruct(protocolerror);
-    return;
-  }
-
+      neo::protocol::DEVICE_CALIBRATION);
+} catch ( const std::exception& e ) {
+  *error = neo_error_construct(e.what());
 }
 
