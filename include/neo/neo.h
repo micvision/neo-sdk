@@ -41,20 +41,23 @@ extern "C" {
 NEO_API int32_t neo_get_version(void);
 NEO_API bool neo_is_abi_compatible(void);
 
-typedef struct neo_error* neo_error_s;
+typedef struct neo_error*  neo_error_s;
 typedef struct neo_device* neo_device_s;
-typedef struct neo_scan* neo_scan_s;
+typedef struct neo_scan*   neo_scan_s;
 
 NEO_API const char* neo_error_message(neo_error_s error);
 NEO_API void neo_error_destruct(neo_error_s error);
 
-NEO_API neo_device_s neo_device_construct_simple(const char* port, neo_error_s* error);
-NEO_API neo_device_s neo_device_construct(const char* port, int32_t baudrate, neo_error_s* error);
+NEO_API neo_device_s neo_device_construct_simple(
+    const char* port, neo_error_s* error);
+NEO_API neo_device_s neo_device_construct(
+    const char* port, int32_t baudrate, neo_error_s* error);
 NEO_API void neo_device_destruct(neo_device_s device);
 
 NEO_API void neo_device_start_scanning(neo_device_s device, neo_error_s* error);
 NEO_API void neo_device_stop_scanning(neo_device_s device, neo_error_s* error);
 
+// Retrieves a scan from the queue (will block until scan is available)
 NEO_API neo_scan_s neo_device_get_scan(neo_device_s device, neo_error_s* error);
 NEO_API void neo_scan_destruct(neo_scan_s scan);
 
@@ -63,11 +66,10 @@ NEO_API float neo_scan_get_angle(neo_scan_s scan, int32_t sample);
 NEO_API int32_t neo_scan_get_distance(neo_scan_s scan, int32_t sample);
 NEO_API int32_t neo_scan_get_signal_strength(neo_scan_s scan, int32_t sample);
 
-NEO_API int32_t neo_device_get_motor_speed(neo_device_s device, neo_error_s* error);
-NEO_API void neo_device_set_motor_speed(neo_device_s device, int32_t hz, neo_error_s* error);
-
-NEO_API int32_t neo_device_get_sample_rate(neo_device_s device, neo_error_s* error);
-NEO_API void neo_device_set_sample_rate(neo_device_s device, int32_t hz, neo_error_s* error);
+NEO_API int32_t neo_device_get_motor_speed(
+    neo_device_s device, neo_error_s* error);
+NEO_API void neo_device_set_motor_speed(
+    neo_device_s device, int32_t hz, neo_error_s* error);
 
 NEO_API void neo_device_reset(neo_device_s device, neo_error_s* error);
 
@@ -77,4 +79,4 @@ NEO_API void neo_device_calibrate(neo_device_s device, neo_error_s* error);
 }
 #endif
 
-#endif // _NEO_H_
+#endif  // _NEO_H_

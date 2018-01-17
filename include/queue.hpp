@@ -1,5 +1,5 @@
-#ifndef SWEEP_QUEUE_62C8F42E8DD5_HPP
-#define SWEEP_QUEUE_62C8F42E8DD5_HPP
+#ifndef _QUEUE_HPP_
+#define _QUEUE_HPP_
 
 /*
  * Thread-safe queue.
@@ -18,7 +18,7 @@ namespace neo {
 namespace queue {
 
 template <typename T> class queue {
-public:
+ public:
   queue(int32_t max) : max_size(max) {}
 
   // Empty the queue
@@ -46,23 +46,26 @@ public:
     std::unique_lock<std::mutex> lock(the_mutex);
     // wait until queue is not empty
     while (the_queue.empty()) {
-      // the_cond_var could wake up the thread spontaneously, even if the queue is still empty...
-      // so put this wakeup inside a while loop, such that the empty check is performed whenever it wakes up
-      the_cond_var.wait(lock); // release lock as long as the wait and reaquire it afterwards.
+      // the_cond_var could wake up the thread spontaneously,
+      // even if the queue is still empty...
+      // so put this wakeup inside a while loop,
+      // such that the empty check is performed whenever it wakes up
+      the_cond_var.wait(lock); // release lock as long as
+                               // the wait and reaquire it afterwards.
     }
     auto v = std::move(the_queue.front());
     the_queue.pop();
     return v;
   }
 
-private:
+ private:
   int32_t max_size;
   std::queue<T> the_queue;
   mutable std::mutex the_mutex;
   mutable std::condition_variable the_cond_var;
 };
 
-} // ns queue
-} // ns neo
+}  // namespace queue
+}  // namespace neo
 
-#endif
+#endif  // _QUEUE_HPP_

@@ -2,7 +2,22 @@ Neo LiDAR SDK
 ---
 [TOC]
 
+### DEPENDENCY
+
+1. Linux
+
+Copy the [usb-serial.rules](drivers/rules/usb-serial.rules) to the `/etc/udev/rules.d` with command
+```shell
+sudo cp drivers/rules/usb-serial.rules /etc/udev/rules.d/usb-serial.rules
+```
+
+2. Windows
+
+You should install the right driver for [CH340](http://www.wch.cn/product/CH340.html), otherwise it will lost data when the Lidar running. Using the `CH341SER.EXE.zip` under `drivers` directory.
+
 ### INSTALLATION
+
+1. Linux
 
 ```bash
 mkdir -p build
@@ -28,6 +43,8 @@ You can test with command:
 ./example /dev/ttyUSB0 230400
 ```
 
+2. Windows
+
 For Windows users open a command prompt with administrative privileges:
 
 ```bash
@@ -52,7 +69,7 @@ Additionally, the above commands assume you want to build a x64 (64bit) verison 
 
 Then be sure to add the installation directories for the library and the header files to the environment `PATH` variable. For the above installation that would be something like `C:\Program Files\neo\lib` for the library and `C:\Program Files\neo\inlcude\neo` for the headers. You may have to restart the computer before the changes take effect.
 
-### Usage
+### USAGE
 
 - Include `<neo/neo.hpp>` for the C++ interface.
 - Link `libneo.so` with `-lneo`.
@@ -62,63 +79,8 @@ If you used CMAKE build system, adding below to your `CMakeLists.txt`:
     FindPackage(Neo REQUIRED)
     target_link_libraries(.. ${LIBNEO_LIBRARY})
     target_include_directories(.. ${LIBNEO_INCLUDE_DIR})
-
-### APIs (C++)
-
-1. 
-``` C++
-int32_t neo_get_version(void);
-```
-
-Returns the neo sdk version.
-
-2.
-``` C++
-static neo_error_s neo_error_construct(const char*);
-void neo_error_destruct(neo_error_s*);
-```
-
-Construct and destruct of neo_error_s.
-
-3.
-``` C++
-neo(const char* port);
-neo(const char* port, int32_t baudrate);
-```
-
-Construct of neo device based on a serial device port (e.g. `/dev/ttyACM0` on Linux or `COM8` on Windows)
-or a `baudrate` (default 115200).
-
-4.
-``` C++
-void start_scanning(void);
-void stop_scanning(void);
-```
-
-Neo device start/stop scanning api.
-
-5.
-``` C++
-int32_t get_motor_speed(void);
-void set_motor_speed(int32_t speed);
-```
-
-Neo device get/set motor speed [range: 0-10].
-
-6.
-``` C++
-scan get_scan(void);
-```
-
-Neo device get the scan data.
-
-7.
-``` C++
-void reset(void);
-void calibrate(void);
-```
-
-Reset the neo device.
+    
+For more APIs(C++), you can reference to [APIs.md](APIs.md).
 
 ### Neopy
 

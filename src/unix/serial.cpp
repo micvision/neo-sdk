@@ -1,6 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 
-#include "serial.h"
+#include "serial.hpp"
 
 #include <errno.h>
 #include <stdbool.h>
@@ -17,39 +17,16 @@
 namespace neo {
 namespace serial {
 
-typedef struct error {
-  const char* what; // always literal, do not deallocate
-} error;
+struct device {
+  int32_t fd;
+};
 
-typedef struct device { int32_t fd; } device;
-
-// Constructor hidden from users
-static error_s error_construct(const char* what) {
-  NEO_ASSERT(what);
-
-  auto out = new error{what};
-  return out;
-}
-
-const char* error_message(error_s error) {
-  NEO_ASSERT(error);
-
-  return error->what;
-}
-
-void error_destruct(error_s error) {
-  NEO_ASSERT(error);
-
-  delete error;
-}
-
-static speed_t get_baud(int32_t bitrate, error_s* error) {
-  NEO_ASSERT(bitrate > 0);
-  NEO_ASSERT(error);
+static speed_t get_baud(int32_t baudrate) {
+  NEO_ASSERT(baudrate > 0);
 
   speed_t baud;
 
-  switch (bitrate) {
+  switch ( baudrate ) {
 #ifdef B0
   case 0:
     baud = B0;
@@ -236,16 +213,15 @@ static speed_t get_baud(int32_t bitrate, error_s* error) {
     break;
 #endif
   default:
-    *error = error_construct("baud rate could not be determined");
+    throw error{"The input baudrate is not supported at this time."};
     baud = -1;
   }
 
   return baud;
 }
 
-static bool wait_readable(device_s serial, error_s* error) {
+static bool wait_readable(device_s serial) {
   NEO_ASSERT(serial);
-  NEO_ASSERT(error);
 
   // Setup a select call to block for serial data
   fd_set readfds;
@@ -254,16 +230,15 @@ static bool wait_readable(device_s serial, error_s* error) {
 
   int32_t ret = select(serial->fd + 1, &readfds, nullptr, nullptr, nullptr);
 
-  if (ret == -1) {
+  if ( ret == -1 ) {
     // Select was interrupted
-    if (errno == EINTR) {
+    if ( errno == EINTR ) {
       return false;
     }
 
     // Otherwise there was some error
-    *error = error_construct("blocking on data to read failed");
-    return false;
-  } else if (ret) {
+    throw error{"blocking on data to read failed."};
+  } else if ( ret ) {
     // Data Available
     return true;
   } else {
@@ -273,28 +248,24 @@ static bool wait_readable(device_s serial, error_s* error) {
   return false;
 }
 
-device_s device_construct(const char* port, int32_t bitrate, error_s* error) {
+device_s device_construct(const char* port, int32_t baudrate) {
   NEO_ASSERT(port);
-  NEO_ASSERT(bitrate > 0);
-  NEO_ASSERT(error);
+  NEO_ASSERT(baudrate > 0);
 
   int32_t fd = open(port, O_RDWR | O_NOCTTY | O_NONBLOCK);
 
-  if (fd == -1) {
-    *error = error_construct("opening serial port failed");
-    return nullptr;
+  if ( fd == -1 ) {
+    throw error{"openning serial port failed."};
   }
 
-  if (!isatty(fd)) {
-    *error = error_construct("serial port is not a TTY");
-    return nullptr;
+  if ( !isatty(fd) ) {
+    throw error{"serial port is not a TTY."};
   }
 
   struct termios options;
 
-  if (tcgetattr(fd, &options) == -1) {
-    *error = error_construct("querying terminal options failed");
-    return nullptr;
+  if ( tcgetattr(fd, &options) == -1 ) {
+    throw error{"querying terminal options failed."};
   }
 
   // Input Flags
@@ -316,32 +287,23 @@ device_s device_construct(const char* port, int32_t bitrate, error_s* error) {
   options.c_cflag |= (CLOCAL | CREAD | CS8);
 
   // setup baud rate
-  error_s bauderror = nullptr;
-  speed_t baud = get_baud(bitrate, &bauderror);
-
-  if (bauderror) {
-    *error = bauderror;
-    return nullptr;
-  }
+  speed_t baud = get_baud(baudrate);
 
   cfsetispeed(&options, baud);
   cfsetospeed(&options, baud);
 
   // flush the port
-  if (tcflush(fd, TCIFLUSH) == -1) {
-    *error = error_construct("flushing the serial port failed");
-    return nullptr;
+  if ( tcflush(fd, TCIFLUSH) == -1 ) {
+    throw error{"flushing the serial port failed."};
   }
 
   // set port attributes
-  if (tcsetattr(fd, TCSANOW, &options) == -1) {
-    *error = error_construct("setting terminal options failed");
-
-    if (close(fd) == -1) {
-      NEO_ASSERT(false && "closing file descriptor during error handling failed");
+  if ( tcsetattr(fd, TCSANOW, &options) == -1 ) {
+    if ( close(fd) == -1 ) {
+      NEO_ASSERT(false && "closing file descriptor during error handling failed.");
     }
 
-    return nullptr;
+    throw error{"setting terminal options failed."};
   }
 
   auto out = new device{fd};
@@ -351,88 +313,83 @@ device_s device_construct(const char* port, int32_t bitrate, error_s* error) {
 void device_destruct(device_s serial) {
   NEO_ASSERT(serial);
 
-  error_s ignore = nullptr;
-  device_flush(serial, &ignore);
-
-  if (close(serial->fd) == -1) {
-      NEO_ASSERT(false && "closing file descriptor during destruct failed");
+  try {
+    device_flush(serial);
+  } catch (...) {
+    // do nothing
   }
 
-  (void)ignore; // nothing we can do here
+  if ( close(serial->fd) == -1 ) {
+      NEO_ASSERT(false && "closing file descriptor during destruct failed.");
+  }
 
   delete serial;
 }
 
-void device_read(device_s serial, void* to, int32_t len, error_s* error) {
+void device_read(device_s serial, void* to, int32_t len) {
   NEO_ASSERT(serial);
   NEO_ASSERT(to);
   NEO_ASSERT(len >= 0);
-  NEO_ASSERT(error);
 
   // the following implements reliable full read xor error
   int32_t bytes_read = 0;
 
-  error_s waiterror = nullptr;
-
-  while (bytes_read < len) {
-    if (wait_readable(serial, &waiterror) && !waiterror) {
+  while ( bytes_read < len ) {
+    if ( wait_readable(serial) ) {
       int ret = read(serial->fd, (char*)to + bytes_read, len - bytes_read);
 
-      if (ret == -1) {
+      if ( ret == -1 ) {
         if (errno == EAGAIN || errno == EINTR) {
           continue;
         } else {
-          *error = error_construct("reading from serial device failed");
-          return;
+          throw error{"reading from serial device failed."};
         }
+      } else if ( 0 == ret ) {
+        throw error{"encountered EOF on serial device."};
       } else {
         bytes_read += ret;
       }
-
-    } else if (waiterror) {
-      *error = waiterror;
-      return;
     }
   }
 
-  NEO_ASSERT(bytes_read == len && "reliable read failed to read requested size of bytes");
+  NEO_ASSERT(bytes_read == len &&
+      "reliable read failed to read requested size of bytes.");
 }
 
-void device_write(device_s serial, const void* from, int32_t len, error_s* error) {
+void device_write(device_s serial, const void* from, int32_t len) {
   NEO_ASSERT(serial);
   NEO_ASSERT(from);
   NEO_ASSERT(len >= 0);
-  NEO_ASSERT(error);
 
   // the following implements reliable full write xor error
   int32_t bytes_written = 0;
 
-  while (bytes_written < len) {
-    int32_t ret = write(serial->fd, (const char*)from + bytes_written, len - bytes_written);
+  while ( bytes_written < len ) {
+    int32_t ret = write(serial->fd,
+        (const char*)from + bytes_written, len - bytes_written);
 
-    if (ret == -1) {
-      if (errno == EAGAIN || errno == EINTR) {
+    if ( ret == -1 ) {
+      if ( errno == EAGAIN || errno == EINTR ) {
         continue;
       } else {
-        *error = error_construct("writing to serial device failed");
-        return;
+        throw error{"writing to serial device failed."};
       }
     } else {
       bytes_written += ret;
     }
   }
 
-  NEO_ASSERT(bytes_written == len && "reliable write failed to write requested size of bytes");
+  NEO_ASSERT(bytes_written == len &&
+      "reliable write failed to write requested size of bytes.");
 }
 
-void device_flush(device_s serial, error_s* error) {
+void device_flush(device_s serial) {
   NEO_ASSERT(serial);
-  NEO_ASSERT(error);
 
-  if (tcflush(serial->fd, TCIFLUSH) == -1) {
-    *error = error_construct("flushing the serial port failed");
+  if ( tcflush(serial->fd, TCIFLUSH) == -1 ) {
+    throw error("flushing the serial port failed.");
   }
 }
 
-} // namespace serial
-} // namespace neo
+}  // namespace serial
+}  // namespace neo
