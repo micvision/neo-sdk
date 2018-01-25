@@ -111,11 +111,12 @@ response_scan_packet_s read_response_scan(serial::device_s serial) {
   uint8_t checksum = checksum_response_scan_packet(scan);
 
   // checksum error handle.
+  unsigned int i = 0;
   char *p2scan = (char*)&scan;
   char *p2scan_back = p2scan+sizeof(response_scan_packet_s)-1;
   unsigned short error_count = 0; // error count.
   while ( checksum != scan.checksum && error_count<100) {
-    for (int i = 0; i < sizeof(response_scan_packet_s)-1; ++i) {
+    for (i = 0; i < sizeof(response_scan_packet_s)-1; ++i) {
         p2scan[i] = p2scan[i+1];
     }
     error_count++;
