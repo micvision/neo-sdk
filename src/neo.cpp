@@ -71,7 +71,8 @@ static void neo_device_accumulate_scans(neo_device_s device) try {
     const bool is_sync = response.s1
       & neo::protocol::response_scan_packet_sync::sync;
 
-    if ( is_sync && received > 1 ) {
+     if ( received > 2
+         && (is_sync || (buffer[received-2].angle > buffer[received-1].angle)) ) {
       auto out = std::unique_ptr<neo_scan>(new neo_scan);
       out->count = received - 1;
       std::copy_n(std::begin(buffer), received - 1, std::begin(out->samples));

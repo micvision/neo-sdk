@@ -110,6 +110,26 @@ response_scan_packet_s read_response_scan(serial::device_s serial) {
 
   uint8_t checksum = checksum_response_scan_packet(scan);
 
+  // checksum error handle.
+  char *p2scan = (char*)&scan;
+  char *p2scan_back = p2scan+sizeof(response_scan_packet_s)-1;
+  unsigned short error_count = 0; // error count.
+  while ( checksum != scan.checksum && error_count<100) {
+    for (int i = 0; i < sizeof(response_scan_packet_s)-1; ++i) {
+        p2scan[i] = p2scan[i+1];
+    }
+    error_count++;
+    serial::device_read(serial, (void *) p2scan_back, 1);
+    checksum = checksum_response_scan_packet(scan);
+    if(checksum == scan.checksum)
+    {
+      error_count += 5;
+      serial::device_read(serial, &scan, sizeof(response_scan_packet_s));
+      checksum = checksum_response_scan_packet(scan);
+    }
+  }
+  // checksum error handle end.
+
   if ( checksum != scan.checksum ) {
     throw error{"invalid scan response commands."};
   }
