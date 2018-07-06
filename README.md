@@ -40,6 +40,11 @@ You can test with command:
 ```bash
 # under the build/ directory
 # ./example device baudrate
+
+# permission
+sudo chmod 777 /dev/ttyUSB0
+
+# then run
 ./example /dev/ttyUSB0 230400
 ```
 
